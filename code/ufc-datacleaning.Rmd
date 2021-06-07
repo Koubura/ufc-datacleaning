@@ -1,0 +1,250 @@
+---
+title: "ufc-datacleaning"
+author: "Ivan Aguilar Nieto and Alexander Holler Rodriguez"
+date: "Junio"
+output:
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval=T, echo=T)
+```
+
+# Descripción de la actividad
+
+## Descripción
+
+El objetivo de esta actividad será el tratamiento de un dataset para aprender a identificar los datos relevantes para un proyecto analítico y usar las herramientas de integración, limpieza, validación y análisis de las mismas.
+
+##  Objetivos
+Los objetivos que se persiguen mediante el desarrollo de esta actividad práctica son los siguientes:
+* Aprender a aplicar los conocimientos adquiridos y su capacidad de resolución de problemas en entornos nuevos o poco conocidos dentro de contextos más amplios o multidisciplinares.
+* Saber identificar los datos relevantes y los tratamientos necesarios (integración, limpieza y validación) para llevar a cabo un proyecto analítico.
+* Aprender a analizar los datos adecuadamente para abordar la información contenida en los datos.
+* Identificar la mejor representación de los resultados para aportar conclusiones sobre el problema planteado en el proceso analítico.
+* Actuar con los principios éticos y legales relacionados con la manipulación de datos en función del ámbito de aplicación.
+* Desarrollar las habilidades de aprendizaje que permita continuar estudiando de un modo que tendrá que ser en gran medida autodirigido o autónomo.
+* Desarrollar la capacidad de búsqueda, gestión y uso de información y recursos en el ámbito de la ciencia de datos.
+
+## Competencias
+Así, las competencias del Máster en Data Science que se desarrollan son:
+* Capacidad de analizar un problema en el nivel de abstracción adecuado a cada situación y aplicar las habilidades y conocimientos adquiridos para abordarlo y resolverlo.
+* Capacidad para aplicar las técnicas específicas de tratamiento de datos (integración, transformación, limpieza y validación) para su posterior análisis.
+
+# Resolución de la actividad
+
+## Descripción del dataset
+
+El conjunto de datos objeto de análisis se ha obtenido a partir de [este enlace](https://www.kaggle.com/calmdownkarm/ufcdataset) y está constituido por 894 variables (columnas) y 2318 registros (filas).
+Entre los campos de este conjunto de datos, nosotros utilizaremos los siguientes:
+
+| Columna        | Descripción   |
+| -------------- |:-------------:|
+| BPrev          | Anteriores combates del luchador azul |
+| BStreak        | Racha de victorias del luchador azul |
+| B_Age          | Edad del luchador azul |
+| B_Height       | Altura del luchador azul |
+| B_HomeTown     | Ciudad natal del luchador azul |
+| B_ID           | Identificador del luchador azul|
+| B_Location     | Localización del luchador azul|
+| B_Name         | Nombre del luchador azul |
+| B_Weight       | Peso del luchador azul |
+| Date           | Fecha del combate|
+| Event_ID       | Identificador del evento |
+| Fight_ID       | Identificador del combate |
+| Last_round     | Última ronda |
+| Max_round      | Rondas máximas |
+| RPrev          | Anteriores combates del luchador rojo |
+| R_Age          | Edad del luchador rojo |
+| R_Height       | Altura del luchador rojo |
+| R_HomeTown     | Ciudad natal del luchador rojo |
+| R_ID           | Identificador del rojo |
+| R_Location     | Localización del rojo |
+| R_Name         | Nombre del luchador rojo |
+| R_Weight       | Peso del luchador rojo |
+| winby          | Motivo de ganar el combate |
+| winner         | Color del ganador del combate |
+
+## Importancia de los datos a analizar
+
+A partir de este conjunto de datos veremos qué variables son más influyentes sobre el ganador de la pelea. Utilizando modelos de regresión podremos predecir el ganador de estas en función de sus características y contrastes de hipótesis que ayuden a identificar propiedades interesantes, donde estas puedan ser inferidas con respecto a la población.
+
+Estos análisis han ganado mucho popularidad entre los espectadores, ya que cada vez son más aquellos que consumen este deporte mediante los medios de comunicación, por lo que, en lugares como casas de apuestas sería de gran interés poder predecir ciertos resultados de una pelea. No solo la casa de apuesta estaría interesado en estos resultados, sino todos aquellos que pretendan apostar.
+
+
+## Limpieza de los datos
+
+```{r setup, include=FALSE}
+# install.packages("readr")
+library(readr)
+```
+
+Para su posterior limpieza, cargaremos el dataset en una variable llamada *ufc*, definiendo el lugar donde se encuentra nuestro archivo de datos y lo guardamos en una variable llamada *path*.
+Imprimiremos las 10 primeras columnas para poder visualizar una parte de los datos que acabamos de cargar y con ello asegurarnos de que la lectura ha sido correcta.
+
+
+```{r}
+path <- "../data/ufc-in.csv"
+ufc <- read_csv(path)
+head(ufc)
+```
+
+### Selección de los datos de interés
+
+Como podemos ver, se han cargado las 894 columnas comentadas al principio, pero como hemos dicho, para este caso solo utilizaremos 24, por lo que el primer paso será eliminar aquellas columnas que no necesitamos.
+
+```{r}
+dim(ufc)
+```
+
+Esto es debido a que mucha de la información presente en el dataset original no nos otorga información sobre el ganador, sino del transcurso detallado de cada pelea, como por ejemplo: Cuántos ganchos han habido en el primer round.
+
+Es por ello que nosotros seleccionamos los datos más relevantes para nuestro objetivo.
+
+
+```{r}
+columnas_interes<-c('BPrev', 'BStreak', 'B_Age', 'B_Height', 'B_HomeTown', 'B_ID', 'B_Location', 'B_Name', 'B_Weight', 'Date', 'Event_ID', 'Fight_ID', 'Last_round', 'Max_round', 'RPrev', 'R_Age', 'R_Height', 'R_HomeTown', 'R_ID', 'R_Location', 'R_Name', 'R_Weight', 'winby', 'winner' )
+
+ufc<-ufc[,columnas_interes]
+summary(ufc)
+```
+
+Tras eliminar las columnas que no vamos a usar, obtenemos estas 24 en la misma variable *ufc*.
+
+### Ceros y elementos vacíos
+
+Una vez hemos seleccionado las columnas de interés, vemos a revisar si hay elementos vacíos.
+
+```{r}
+colSums(is.na(ufc) | ufc=="")
+```
+
+Nos encontramos con el siguiente número de valores vacíos:
+* Edad del luchador azul: 17
+* Altura del luchador azul: 17
+* Ciudad natal del luchador azul: 17
+* Localización del luchador azul: 13
+* Peso del luchador azul: 12
+* Edad del luchador rojo: 26
+* Altura del luchador rojo: 24
+* Ciudad natal del luchador rojo: 25
+* Localización del luchador rojo: 24
+* Peso del luchador rojo: 22
+* Motivo de la victoria: 36
+
+Ahora, deberemos decidir como vamos a tratar estos valores, si vamos a intentar completarlos, los obviaremos, los eliminaremos, ...
+
+Para ello utilizaremos el método kNN, donde se imputan valores basado en la similitud o diferencia entre los registros.
+Predecir los valores, si no es suficientemente preciso, puede conllevar problemas a la hora de utilizarlos más adelante para predecir, pero su perdida es una consecuencia mucho peor.
+
+Antes, para tener un punto de referencia, vamos a imprimir aquellos que *B_Location* sea null y veremos como se comporta el primer registro tras aplicar el método kNN
+
+```{r}
+head(ufc[is.na(ufc$B_Location),])
+```
+
+
+```{r warning=false}
+if(!require(VIM)){
+    install.packages('VIM')
+    library(VIM)
+}
+
+ufc$B_Age <- kNN(ufc)$B_Age
+ufc$B_Height <- kNN(ufc)$B_Height
+ufc$B_HomeTown <- kNN(ufc)$B_HomeTown
+ufc$B_Location <- kNN(ufc)$B_Location
+ufc$B_Weight <- kNN(ufc)$B_Weight
+ufc$R_Age <- kNN(ufc)$R_Age
+ufc$R_Height <- kNN(ufc)$R_Height
+ufc$R_HomeTown <- kNN(ufc)$R_HomeTown
+ufc$R_Location <- kNN(ufc)$R_Location
+ufc$R_Weight <- kNN(ufc)$R_Weight
+ufc$winby <- kNN(ufc)$winby
+
+colSums(is.na(ufc) | ufc=="")
+```
+
+Vemos que tras aplicarlo no hay ningún valor vacío, vamos ahora a ver como se ha comportado con nuestro sujeto.
+
+```{r}
+ufc[ufc$B_Name=="Lipeng Zhang",]
+```
+
+### La edad es estatica
+
+Tras revisar la edad de los peleadores, nos hemos percatado que la edad de estos es estatica, es decir: Aunque un jugador juegue dos años distintos, vemos que su edad es la misma los dos años.
+
+Para hacerlo, miraremos el caso del peleador *Jose Aldo*
+
+```{r}
+edad_jugador <-function(birthday){
+  return(trunc((as.Date("01/01/2017",
+                        "%m/%d/%Y")-as.Date(birthday,"%m/%d/%Y"))/365))
+} 
+ufc[ufc$R_Name=='Jose Aldo',c('R_Name', 'R_Age', 'Date')]
+```
+
+Como podemos ver, este peleador tiene 32 años en el año 2014 y también en el 2018, 4 años después.
+Para resolver esto tras una búsqueda en Google, sabemos que *Jose Aldo* en 2018 tenia 32, así que interpretaremos que la edad más actual es la de referencia.
+Pero primero de todo, hay fechas en formato Europeo y formato Americano, así que las pasaremos todas a Europeo.
+
+```{r}
+ufc$Date<-ifelse(grepl('-', ufc$Date),
+       paste(substr(ufc$Date, 9, 11),'/',substr(ufc$Date, 6, 7),'/',substr(ufc$Date, 0, 4), sep=""),
+       ufc$Date)
+head(ufc)
+```
+
+Tras ello, vamos a proseguir corrigiendo la edad de los luchadores.
+El procedimiento será restar la edad que figura en el registro a la resta del año del ultimo combate con el año del combate del registro.
+
+Para ello, vamos a crear una columna con el año del combate
+
+```{r}
+ufc$year <- as.numeric(substring(ufc$Date,7,10))
+head(ufc)
+```
+
+Primero creamos un dataset utilizando un método parecido al group by que agrupe por nombre del peleador y seleccione el del año mayor.
+
+```{r}
+max_years_r<-merge(ufc, aggregate(year ~ R_Name, ufc, max))
+max_years_b<-merge(ufc, aggregate(year ~ B_Name, ufc, max))
+max_years_b
+```
+
+```{r}
+max_year_b<-array(numeric(),c(1,3,0))
+max_year_r<-array(numeric(),c(1,3,0))
+
+for(i in 1:nrow(ufc)) {
+    # Blue
+    mb<-head(max_years_b[max_years_b$B_Name==ufc[i,]$B_Name,],1)
+    max_year_b[i]<-mb$year
+    
+    # Red
+    mr<-head(max_years_r[max_years_r$R_Name==ufc[i,]$R_Name,],1)
+    max_year_r[i]<-mr$year
+}
+
+ufc$max_year_b<-max_year_b
+ufc$max_year_r<-max_year_r
+```
+
+```{r}
+ufc$R_Age <- ufc$R_Age - (ufc$max_year_r - ufc$year)
+ufc$B_Age <- ufc$B_Age - (ufc$max_year_b - ufc$year)
+ufc[ufc$R_Name=='Jose Aldo',c('R_Name', 'R_Age', 'Date')]
+```
+
+Como podemos comprobar, ahora las edades si concuerdan con los años y han dejado de ser estáticas.
