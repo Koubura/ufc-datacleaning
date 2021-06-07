@@ -83,16 +83,16 @@ Estos análisis han ganado mucho popularidad entre los espectadores, ya que cada
 
 ## Limpieza de los datos
 
-```{r setup, include=FALSE}
-# install.packages("readr")
-library(readr)
-```
-
 Para su posterior limpieza, cargaremos el dataset en una variable llamada *ufc*, definiendo el lugar donde se encuentra nuestro archivo de datos y lo guardamos en una variable llamada *path*.
 Imprimiremos las 10 primeras columnas para poder visualizar una parte de los datos que acabamos de cargar y con ello asegurarnos de que la lectura ha sido correcta.
 
 
 ```{r}
+if(!require(readr)){
+    install.packages('readr')
+    library(readr)
+}
+
 path <- "../data/ufc-in.csv"
 ufc <- read_csv(path)
 head(ufc)
@@ -248,3 +248,111 @@ ufc[ufc$R_Name=='Jose Aldo',c('R_Name', 'R_Age', 'Date')]
 ```
 
 Como podemos comprobar, ahora las edades si concuerdan con los años y han dejado de ser estáticas.
+
+### Valores atípicos
+
+Un valor atípico (o outlier) es una observación anormal y extrema en una muestra estadística.
+
+Para identificarlos podemos usar la función *boxplots.stats()* y pueden ser representados por un diagrama de caja.
+
+```{r}
+boxplot(ufc$R_Age)
+boxplot.stats(ufc$R_Age)$out
+```
+
+En este ejemplo, podemos ver como se consideran atípicos valores perfectamente validos.
+Crearemos una función para estudiar los valores que se consideran atípicos.
+
+```{r}
+detect_outliers <- function(x){
+  quantiles <- quantile(x, c(0, 1), na.rm = TRUE)
+  
+  min_atipico = quantiles[1]-quantiles[1]*0.05
+  max_atipico = quantiles[2]+quantiles[2]*0.05
+  
+  min_atipico = round(as.numeric(min_atipico),0)
+  max_atipico = round(as.numeric(max_atipico),0)
+  
+  print(paste("Se reconoceran como valores atípicos aquellos que sean menores a", min_atipico, "y mayores a", max_atipico))
+}
+```
+
+```{r}
+print("Para la variable R_Age")
+detect_outliers(ufc$R_Age)
+print("Para la variable BPrev")
+detect_outliers(ufc$BPrev)
+print("Para la variable BStreak")
+detect_outliers(ufc$BStreak)
+print("Para la variable B_Age")
+detect_outliers(ufc$B_Age)
+print("Para la variable B_Height")
+detect_outliers(ufc$B_Height)
+print("Para la variable B_ID")
+detect_outliers(ufc$B_ID)
+print("Para la variable B_Weight")
+detect_outliers(ufc$B_Weight)
+print("Para la variable Last_round")
+detect_outliers(ufc$Last_round)
+print("Para la variable Max_round")
+detect_outliers(ufc$Max_round)
+print("Para la variable RPrev")
+detect_outliers(ufc$RPrev)
+print("Para la variable R_Age")
+detect_outliers(ufc$R_Age)
+print("Para la variable R_Height")
+detect_outliers(ufc$R_Height)
+print("Para la variable R_Weight")
+detect_outliers(ufc$R_Weight)
+```
+
+Tras estos resultados, vamos a eliminar los valores atípicos de aquellas variables que realmente puedan ser valores erróneos.
+Crearemos una función para ello.
+
+```{r}
+impute_outliers <- function(x){
+  quantiles <- quantile(x, c(0, 1), na.rm = TRUE)
+  
+  min_atipico = quantiles[1]-quantiles[1]*0.05
+  
+  max_atipico = quantiles[2]+quantiles[2]*0.05
+  
+  min_atipico = round(as.numeric(min_atipico),0)
+  max_atipico = round(as.numeric(max_atipico),0)
+
+  x[x<min_atipico]<-NA
+  x[x>max_atipico]<-NA
+  
+  return(x)
+}
+```
+
+```{r}
+ufc$BPrev<-impute_outliers(ufc$BPrev)
+ufc$BStreak<-impute_outliers(ufc$BStreak)
+ufc$B_Height<-impute_outliers(ufc$B_Height)
+ufc$B_ID<-impute_outliers(ufc$B_ID)
+ufc$B_Weight<-impute_outliers(ufc$B_Weight)
+ufc$Last_round<-impute_outliers(ufc$Last_round)
+ufc$Max_round<-impute_outliers(ufc$Max_round)
+ufc$RPrev<-impute_outliers(ufc$RPrev)
+ufc$R_Height<-impute_outliers(ufc$R_Height)
+ufc$R_Weight<-impute_outliers(ufc$R_Weight)
+
+colSums(is.na(ufc) | ufc=="")
+```
+
+Hemos puesto los valores atípicos a NaN, y podemos ver que no teníamos ningún valor atípico.
+
+### Exportación de los datos preprocesados
+
+Una vez hemos llevado a cabo la integración, validación y limpieza el dataset, exportaremos los datos a csv como un nuevo fichero llamado *ufc-cleaned.csv*
+
+```{r}
+write.csv(ufc, "../data/ufc-cleaned.csv")
+```
+
+
+
+
+
