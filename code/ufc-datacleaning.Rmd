@@ -17,6 +17,10 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval=T, echo=T)
+library(ggplot2)
+library(lessR)
+library(dplyr)
+library(convertr)
 ```
 
 # Descripción de la actividad
@@ -173,6 +177,18 @@ ufc$winby <- kNN(ufc)$winby
 
 colSums(is.na(ufc) | ufc=="")
 ```
+
+Aunque nuestro dataset ha rellenado los valores de las columnas vacias con valores predecidos hay una columna que volveremos a rellenar con valores nuevos, ya que es una casuistica que no se podria predecir.
+
+```{r}
+ufc[ufc$winner=='draw' | ufc$winner=='no contest',c('winby', 'winner')]
+ufc$winby<-ifelse(ufc$winner=='draw', 'DRAW',
+                  ifelse(ufc$winner=='no contest',"NO CONTEST",
+                           ufc$winby))
+ufc[ufc$winner=='draw' | ufc$winner=='no contest',c('winby', 'winner')]
+```
+
+
 
 Vemos que tras aplicarlo no hay ningún valor vacío, vamos ahora a ver como se ha comportado con nuestro sujeto.
 
@@ -351,6 +367,112 @@ Una vez hemos llevado a cabo la integración, validación y limpieza el dataset,
 ```{r}
 write.csv(ufc, "../data/ufc-cleaned.csv")
 ```
+
+## Análisis de los datos
+
+### Visualización de los datos
+
+Vamos analizar los datos de nuestro dataset para analizar las caracteristicas de nuestros combatientes y analizar sus victorias.
+
+```{r}
+PieChart(winner,data = ufc)
+```
+Observamos que hay mas combatientes ganadores rojos que azules, vamos analizar si la edad es influyente es las victorias o no.
+
+```{r}
+ufc_blue_winner <- ufc[ufc$winner=="blue",]
+ufc_red_winner <- ufc[ufc$winner=="red",]
+
+hist(ufc_blue_winner$B_Age,
+    col="blue",
+    main="Histograma de la edad combatiente Azul ganador",
+    xlab="Edad combatiente Azul",
+    ylab="Frequencia",
+    labels=TRUE)
+
+hist(ufc_red_winner$R_Age,
+    col="red",
+    main="Histograma de la edad combatiente Rojo ganador",
+    xlab="Edad combatiente Rojo",
+    ylab="Frequencia",
+    labels=TRUE)
+```
+Observamos a simple vista que los combatientes Azules ganadores son mas jovenes que los ganadores rojos, viendo que el pico de ganadores esta entorno a los 30 años en los dos casos.
+
+Vemos como influye ahora la altura a nuestros ganadores.
+```{r}
+hist(ufc_blue_winner$B_Height,
+    col="blue",
+    main="Histograma de la altura combatiente Azul ganador",
+    xlab="Altura combatiente Azul",
+    ylab="Frequencia",
+    labels=TRUE)
+
+hist(ufc_red_winner$R_Height,
+    col="red",
+    main="Histograma de la altura combatiente Rojo ganador",
+    xlab="Altura combatiente Rojo",
+    ylab="Frequencia",
+    labels=TRUE)
+```
+Observamos también que los combatientes del lado rojo suelen ser un poco mas altos que los ganadores azules.
+
+El peso en los combates no es influyente para la victoria porque pactan el peso en el que van a pelear así que esta columna no la observaremos.
+
+Vamos a observar como son las victorias de nuestros combatientes.
+
+```{r warning=FALSE,echo=FALSE,message=FALSE}
+PieChart(winby,data = ufc_blue_winner)
+PieChart(winby,data = ufc_red_winner)
+```
+Observamos que en los dos casos las maneras de ganar de los dos lados son muy parecidas.
+
+### Normalización de los datos
+
+```{r}
+str(ufc)
+ufc
+library(nortest)
+alpha = 0.05
+ufc_numeric<-select_if(ufc, is.numeric)
+col.names =colnames(ufc_numeric)
+
+ufc_numeric %>% 
+  convert(int(col.names))
+
+#is.numeric()
+
+
+#p_val =ad.test(as.numeric(unlist(ufc_numeric[,3])))$p.value
+shapiro.test(as.numeric(unlist(ufc_numeric[,12])))$p.value
+
+for (i in 1:ncol(ufc_numeric)) {
+  if (i == 1)cat("Variables que no siguen una distribución normal:\n")
+  #if (is.integer(ufc[,i]) |is.numeric(ufc[,i])) {
+    p_val =shapiro.test(as.numeric(unlist(ufc_numeric[,i])))$p.value
+    #print(p_val)
+    if (p_val < alpha) {
+      cat(col.names[i])# Format output
+      if (i <ncol(ufc_numeric) - 1)cat(", ")
+      if (i %% 3 == 0)cat("\n")
+    }
+  #}
+}
+
+par(mfrow=c(2,2))
+for(i in 1:ncol(ufc_numeric)) {
+  if (is.numeric((as.numeric(unlist(ufc_numeric[,i]))))){
+    qqnorm((as.numeric(unlist(ufc_numeric[,i]))),main = paste("Normal Q-Q Plot for ",colnames(ufc_numeric)[i]))
+    qqline((as.numeric(unlist(ufc_numeric[,i]))),col="red")
+    hist((as.numeric(unlist(ufc_numeric[,i]))), 
+      main=paste("Histogram for ", colnames(ufc_numeric)[i]), 
+      xlab=colnames(ufc_numeric)[i], freq = FALSE)
+  }
+}
+
+
+```
+
 
 
 
