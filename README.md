@@ -1,10 +1,10 @@
 # ufc-datacleaning
 ## Estadisticas de diferentes luchas de UFC
 
-## Autor
+## Autores
 
-Ivan Aguilar Nieto, ivanaguilarni@gmail.com
-Alexander Holler Rodriguez, aholler@uoc.edu
+* Ivan Aguilar Nieto, ivanaguilarni@gmail.com
+* Alexander Holler Rodriguez, aholler@uoc.edu
 
 ## Acerca de este software
 
