@@ -15,12 +15,17 @@ output:
   word_document: default
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=TRUE,cache=FALSE}
 knitr::opts_chunk$set(eval=T, echo=T)
 library(ggplot2)
 library(lessR)
 library(dplyr)
 library(convertr)
+library(VIM)
+library(corrplot)
+library(nnet)
+library(readr)
+library(car)
 ```
 
 # Descripción de la actividad
@@ -92,11 +97,6 @@ Imprimiremos las 10 primeras columnas para poder visualizar una parte de los dat
 
 
 ```{r}
-if(!require(readr)){
-    install.packages('readr')
-    library(readr)
-}
-
 path <- "../data/ufc-in.csv"
 ufc <- read_csv(path)
 head(ufc)
@@ -157,12 +157,7 @@ head(ufc[is.na(ufc$B_Location),])
 ```
 
 
-```{r warning=false}
-if(!require(VIM)){
-    install.packages('VIM')
-    library(VIM)
-}
-
+```{r}
 ufc$B_Age <- kNN(ufc)$B_Age
 ufc$B_Height <- kNN(ufc)$B_Height
 ufc$B_HomeTown <- kNN(ufc)$B_HomeTown
@@ -236,7 +231,6 @@ Primero creamos un dataset utilizando un método parecido al group by que agrupe
 ```{r}
 max_years_r<-merge(ufc, aggregate(year ~ R_Name, ufc, max))
 max_years_b<-merge(ufc, aggregate(year ~ B_Name, ufc, max))
-max_years_b
 ```
 
 ```{r}
@@ -370,6 +364,147 @@ write.csv(ufc, "../data/ufc-cleaned.csv")
 
 ## Análisis de los datos
 
+### Selección de los grupos de datos
+
+En este apartado seleccionaremos los grupos dentro de nuestro dataset que pueden resultar relevantes para el análisis y comparación.
+
+En nuestro caso, haremos grupos según el peso de los luchadores de los ganadores de cada pelea.
+
+```{r}
+ufc_blue_winner <- ufc[ufc$winner=="blue",]
+ufc_red_winner <- ufc[ufc$winner=="red",]
+# Agrupación por pesos segun el ganador
+ufc.peso_medio_azul<-ufc_blue_winner[ufc_blue_winner$B_Weight<=83,]
+ufc.peso_semipesado_azul<-ufc_blue_winner[ufc_blue_winner$B_Weight>83 & ufc_blue_winner$B_Weight<=93,]
+ufc.peso_pesado_azul<-ufc_blue_winner[ufc_blue_winner$B_Weight>93 & ufc_blue_winner$B_Weight<=120,]
+
+ufc.peso_medio_rojo<-ufc_red_winner[ufc_red_winner$R_Weight<=83,]
+ufc.peso_semipesado_rojo<-ufc_red_winner[ufc_red_winner$R_Weight>83 & ufc_red_winner$R_Weight<=93,]
+ufc.peso_pesado_rojo<-ufc_red_winner[ufc_red_winner$R_Weight>93 & ufc_red_winner$R_Weight<=120,]
+```
+
+
+### Comprobación de la normalidad y homogeneidad de la varianza.
+
+```{r}
+library(nortest)
+
+alpha = 0.05
+ufc_numeric<-select_if(ufc, is.numeric)
+col.names =colnames(ufc_numeric)
+
+for (i in 1:ncol(ufc_numeric)) {
+  p_val <- shapiro.test(unlist(ufc_numeric[,i]))$p.value
+  
+  if (p_val < alpha) message <- "NO sigue una distribución normal"
+  else message <- "sigue una distribución normal"
+  
+  print(paste("La variable",col.names[i],"ha obtenido un p-value de",p_val,"por lo tanto",message))
+}
+
+par(mfrow=c(2,2))
+for(i in 1:ncol(ufc_numeric)) {
+  col<-unlist(ufc_numeric[,i])
+  qqnorm(col, main = paste("Normal Q-Q Plot for ",colnames(ufc_numeric)[i]))
+  qqline(col,col="red")
+  hist(col, main=paste("Histogram for ", colnames(ufc_numeric)[i]), xlab=colnames(ufc_numeric)[i], freq = FALSE)
+}
+```
+
+Ahora vamos a estudiar la homogeneidad de la varianzas entre las variables que nos indican el ganador y la edad.
+Para ello, primero deberemos pasar la variable categórica *winner* a numérica mediante la función *class.ind*.
+Utilizaremos el Test de Levene, el cual nos dice que la hipótesis nula consiste en que ambas varianzas son iguales.
+
+```{r}
+ufc_homogeniedad = cbind(ufc,class.ind(unlist(ufc[,c("winner")])))
+```
+
+Una vez hemos incorporado las columnas necesarias para transformar la variable categórica *winner* en variable numérica, podemos proceder a realizar el test.
+
+```{r}
+resLevene<-leveneTest(y = ufc_homogeniedad$blue, group = ufc_homogeniedad$B_Age, center = "median")
+```
+
+Ya que el valor p es inferior a 0.05, podemos rechazar la hipótesis nula y por lo tanto decir que no hay homogeneidad de la varianzas entre las variables.
+
+### Pruebas estadísticas
+
+Como primer paso, debemos saber que variables son las mas influyentes sobre el ganador, esto lo haremos estudiando la correlación entre las variables.
+
+#### Correlación entre las variables
+
+```{r}
+newUfc<-cbind(ufc_numeric,class.ind(unlist(ufc[,c("winner")])))
+
+mycor = cor(newUfc, method = "spearman" , use = "complete.obs")
+mycor
+corrplot(mycor, type = "upper", order = "hclust", tl.col = "black", tl.srt = 45)
+```
+
+Tras este estudio podemos ver que la edad del ganador y del rival y el peso de ambos son los factores más influyentes para conocer el ganador.
+
+Repetiremos este proceso con el Test de Sperman.
+
+```{r}
+Winby  = class.ind(unlist(ufc[,23]))
+Winner = class.ind(unlist(ufc[,24]))
+
+ufc_sperman<-cbind(ufc,Winby,Winner)
+
+for (i in 1:(ncol(ufc_sperman))) {
+  if (is.integer(ufc_sperman[,i]) | is.numeric(ufc_sperman[,i])) {
+    spearman_test = cor.test(ufc_sperman[,i], ufc_sperman[,length(ufc_sperman)], method = "spearman", exact=FALSE)
+    corr_coef = spearman_test$estimate
+    print(paste("Para la variable",colnames(ufc_sperman)[i],"obtenemos una estimación de",corr_coef))
+  }
+}
+```
+
+Tras esto, podemos identificar cuáles son las variables más correlacionadas según su proximidad con los valores -1 y +1.
+Es por ello que podemos decir que la variable de la edad es la mas influyente.
+
+#### ¿Hay categorias de peso con mas probabilidad de ganador?
+
+Si recuperamos los grupos hechos anteriormente podemos utilizar el T-test para lograr decidir frente a nuestra hipótesis. Teniendo en cuenta que la hipótesis alternativa es que la categoría del peso influye en la victoria.
+
+```{r}
+ufc$winner_weight<-ifelse(ufc$winner=="blue",ufc$B_Weight,ufc$R_Weight)
+ufc$winner_category<-ifelse(ufc$winner_weight<=83,1,
+                            ifelse(ufc$winner_weight>83 & ufc$winner_weight<=93, 2,
+                                   ifelse(ufc$winner_weight>93 & ufc$winner_weight<=140, 3,0)))
+
+t.test(class.ind(ufc$winner), ufc$winner_category,alternative = "less")
+```
+
+Dado que hemos obtenido un p-value menor que 0.05, rechazamos la hipótesis nula. Esto quiere decir que el la categoría en la que se encuentra el luchador influye en la victoria.
+
+#### ¿Podemos averiguar el ganador teniendo su peso, su altura y su edad y el de su contrincante?
+
+Para el siguiente apartado, emplearemos una regresión lineal para generar un modelo y predecir los resultados de un combate ficticio.
+Primero genereremos el modelo utilizando la funcion *lm*
+
+```{r}
+ufc$winner_numerical<-ifelse(ufc$winner=="blue",1,2)
+ufc_model<-lm(winner_numerical ~ winner_category + B_Height + R_Height + B_Age + R_Age, data = ufc)
+ufc_model
+```
+
+Una vez generado el modelo crearemos un combate ficticio
+
+```{r}
+new<-data_frame(winner_category=c(2),B_Height=c(181),R_Height=c(169),B_Age=c(25),R_Age=c(34))
+new
+```
+
+Ahora aplicaremos el modelo con el nuevo combate y veremos el resultado que nos da.
+
+```{r}
+round(predict(ufc_model, new),0)
+```
+
+Tras aplicar la predicción, obtenemos el resultado de que el ganador seria el azul, si paramos a pensarlo, tiene cierta ventaja ya que es más alto y se encuentra en una edad mas energética.
+
+
 ### Visualización de los datos
 
 Vamos analizar los datos de nuestro dataset para analizar las caracteristicas de nuestros combatientes y analizar sus victorias.
@@ -427,54 +562,16 @@ PieChart(winby,data = ufc_red_winner)
 ```
 Observamos que en los dos casos las maneras de ganar de los dos lados son muy parecidas.
 
-### Normalización de los datos
+### Conclusiones
 
-```{r}
-str(ufc)
-ufc
-library(nortest)
-alpha = 0.05
-ufc_numeric<-select_if(ufc, is.numeric)
-col.names =colnames(ufc_numeric)
+Tras la realización de estos tres test hemos podido observar que con el conjunto de datos actuales hay poca información para obtener conclusiónes suficientemente solidas como para apostar, esto es debido a que hemos obtenido un subgrupo de las variables iniciales, ya que con mucha seguridad trabajando con las 894 variables podríamos obtener resultados mucho más precisos, pero son un numero de variables muy grande y hemos intentado utilizar menos variables.
 
-ufc_numeric %>% 
-  convert(int(col.names))
-
-#is.numeric()
+En la limpieza hemos visto cosas que hasta ahora no habíamos visto, así como los diferentes formatos de fecha y la edad estática.
+Gracias al problema de la edad estática hemos podido comprender que es mucho mejor conocer sobre el tema que se esta tratando para poder utilizar la información ajena a la matemática y la estadística, como cuando necesitas saber en que categoría compite cada uno de ellos según el peso.
 
 
-#p_val =ad.test(as.numeric(unlist(ufc_numeric[,3])))$p.value
-shapiro.test(as.numeric(unlist(ufc_numeric[,12])))$p.value
-
-for (i in 1:ncol(ufc_numeric)) {
-  if (i == 1)cat("Variables que no siguen una distribución normal:\n")
-  #if (is.integer(ufc[,i]) |is.numeric(ufc[,i])) {
-    p_val =shapiro.test(as.numeric(unlist(ufc_numeric[,i])))$p.value
-    #print(p_val)
-    if (p_val < alpha) {
-      cat(col.names[i])# Format output
-      if (i <ncol(ufc_numeric) - 1)cat(", ")
-      if (i %% 3 == 0)cat("\n")
-    }
-  #}
-}
-
-par(mfrow=c(2,2))
-for(i in 1:ncol(ufc_numeric)) {
-  if (is.numeric((as.numeric(unlist(ufc_numeric[,i]))))){
-    qqnorm((as.numeric(unlist(ufc_numeric[,i]))),main = paste("Normal Q-Q Plot for ",colnames(ufc_numeric)[i]))
-    qqline((as.numeric(unlist(ufc_numeric[,i]))),col="red")
-    hist((as.numeric(unlist(ufc_numeric[,i]))), 
-      main=paste("Histogram for ", colnames(ufc_numeric)[i]), 
-      xlab=colnames(ufc_numeric)[i], freq = FALSE)
-  }
-}
-
-
-```
-
-
-
-
-
-
+| Contribuciones        | Firma   |
+| :------------: |:-------------:|
+| Investigación previa | IA, AH |
+| Redacción de las respuestas | IA, AH |
+| Desarrollo código | IA, AH |
